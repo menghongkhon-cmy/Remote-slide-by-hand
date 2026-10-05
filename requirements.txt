@@ -1,0 +1,5 @@
+# HandSlide Controller - Python 3.10 to 3.12 recommended
+opencv-python>=4.8
+mediapipe>=0.10.14
+pyautogui>=0.9.54
+numpy>=1.23

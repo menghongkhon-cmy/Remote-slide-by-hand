@@ -1,0 +1,129 @@
+"""
+config.py - central settings for HandSlide Controller.
+
+Everything you might want to tweak lives here. Other modules only READ
+these values, so you never have to hunt through the code to change behaviour.
+"""
+
+APP_NAME = "HandSlide Controller"
+APP_SUBTITLE = "Control Your Presentation With Your Hands"
+
+# ---------------------------------------------------------------------------
+# Main settings (the ones you will change most often)
+# ---------------------------------------------------------------------------
+CAMERA_INDEX = 0            # 0 = default webcam, 1 = second webcam, ...
+GESTURE_COOLDOWN = 1.2      # seconds to wait after ANY action before the next one
+CONFIDENCE_THRESHOLD = 0.7  # below this a gesture is reported as UNKNOWN (no action)
+MAX_HANDS = 1               # only one hand is tracked
+DEBUG = True                # True = print gesture/action info to the console
+
+# ---------------------------------------------------------------------------
+# Camera
+# ---------------------------------------------------------------------------
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
+TARGET_FPS = 30
+
+# ---------------------------------------------------------------------------
+# MediaPipe
+# ---------------------------------------------------------------------------
+MP_DETECTION_CONFIDENCE = 0.7
+MP_TRACKING_CONFIDENCE = 0.6
+# The hand model file lives next to the scripts. If it is missing or damaged
+# the app downloads it automatically (about 8 MB, first run only).
+MODEL_FILE = "hand_landmarker.task"
+MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
+    "hand_landmarker/float16/1/hand_landmarker.task"
+)
+
+# ---------------------------------------------------------------------------
+# Gesture stability / timing
+# ---------------------------------------------------------------------------
+STABLE_TIME = 0.5                   # a gesture must be held this long to trigger
+HOLD_TIMES = {"OPEN_PALM": 1.0}     # per-gesture override (open palm = hold ~1 s)
+FLICKER_TOLERANCE = 0.2             # ignore very short detection dropouts (seconds)
+# True  -> after an action fires, the gesture must be released (hand lowered or
+#          gesture changed) before it can fire again. Safest for demos.
+# False -> holding the gesture keeps firing once per (cooldown + hold time).
+REQUIRE_RELEASE_BETWEEN_TRIGGERS = True
+ALLOW_THUMBS_UP_ENABLE = True       # thumbs up can switch gesture control ON
+COUNTDOWN_SECONDS = 3
+WARNING_DISPLAY_SECONDS = 4.0
+
+# ---------------------------------------------------------------------------
+# Gesture -> action mapping. CHANGE GESTURES HERE.
+# Available actions: NEXT, PREVIOUS, NONE, ENABLE
+# Available gestures: OPEN_PALM, POINT_LEFT, POINT_RIGHT, FIST, THUMBS_UP
+# ---------------------------------------------------------------------------
+GESTURE_ACTIONS = {
+    "OPEN_PALM": "NEXT",
+    "POINT_RIGHT": "NEXT",
+    "POINT_LEFT": "PREVIOUS",
+    "FIST": "NONE",
+    "THUMBS_UP": "ENABLE",
+}
+
+# (emoji, display name) for every gesture the UI can show
+GESTURE_INFO = {
+    "OPEN_PALM": ("✋", "OPEN PALM"),
+    "POINT_LEFT": ("👈", "POINT LEFT"),
+    "POINT_RIGHT": ("👉", "POINT RIGHT"),
+    "FIST": ("✊", "FIST"),
+    "THUMBS_UP": ("👍", "THUMBS UP"),
+    "UNKNOWN": ("❔", "UNKNOWN"),
+    "NONE": ("…", "NONE"),
+}
+
+ACTION_LABELS = {
+    "NEXT": "NEXT SLIDE",
+    "PREVIOUS": "PREVIOUS SLIDE",
+    "NONE": "NO ACTION",
+    "ENABLE": "ENABLE CONTROL",
+}
+
+# ---------------------------------------------------------------------------
+# PowerPoint control
+# ---------------------------------------------------------------------------
+NEXT_KEY = "right"
+PREVIOUS_KEY = "left"
+START_SLIDESHOW_KEY = "f5"
+# If True, slide keys are only sent when a presentation window is in front.
+# This stops the arrow keys from landing in some other program.
+REQUIRE_POWERPOINT_ACTIVE = True
+# Window-title keywords that count as "a presentation window".
+PRESENTATION_WINDOW_KEYWORDS = ("PowerPoint", "Slide Show", "Impress")
+
+# ---------------------------------------------------------------------------
+# Gesture geometry thresholds (tune these if detection feels off)
+# ---------------------------------------------------------------------------
+# Finger is OPEN when (wrist->tip distance) / (wrist->PIP distance) exceeds this.
+FINGER_OPEN_RATIO = 1.1
+FINGER_CERTAINTY_SCALE = 0.2
+# Thumb is OPEN when (tip->index knuckle distance) / hand size exceeds this.
+THUMB_OPEN_DIST_RATIO = 0.5
+THUMB_CERTAINTY_SCALE = 0.2
+# Thumbs up: thumb tip must be this far above its base (fraction of hand size).
+THUMB_UP_MIN_RISE = 0.45
+# Pointing: index direction must be mostly horizontal.
+POINT_MIN_HORIZONTAL = 0.45         # index length shown sideways / hand size
+POINT_DIRECTION_RATIO = 1.2         # |dx| must exceed |dy| * this
+
+# ---------------------------------------------------------------------------
+# UI colours
+# ---------------------------------------------------------------------------
+COLORS = {
+    "bg": "#0f1420",
+    "card": "#1a2133",
+    "card_border": "#2a3350",
+    "text": "#e8ecf5",
+    "muted": "#8a94ad",
+    "accent": "#4f8cff",
+    "success": "#2ecc71",
+    "success_hover": "#3fe083",
+    "danger": "#ff5468",
+    "danger_hover": "#ff7385",
+    "warning": "#ffb020",
+    "button_neutral": "#2a3350",
+    "button_neutral_hover": "#37426a",
+}
