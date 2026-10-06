@@ -3,8 +3,15 @@ main.py - HandSlide Controller entry point.
 
 Flow
 ----
-    App starts -> camera starts -> user sees webcam -> user clicks START
-    (3-2-1-GO) -> gesture control ON -> hand gestures change slides.
+    App starts -> camera starts -> user clicks CHOOSE PRESENTATION FILE and picks
+    a .pptx -> the file opens -> 3-2-1-GO -> slideshow starts (F5) -> gesture
+    control ON -> hand gestures change slides.
+
+Usage
+-----
+    python main.py          desktop app (camera + PowerPoint key control)
+    python main.py --web    browser app (upload .pptx/.pdf, camera in the browser)
+    python main.py --remote helper so the hosted web page can control PowerPoint on this PC
 
 Threads
 -------
@@ -16,6 +23,8 @@ the newest snapshot the worker published.
 from __future__ import annotations
 
 import importlib
+import os
+import queue
 import sys
 import threading
 import time
@@ -59,6 +68,24 @@ def _check_dependencies() -> None:
         sys.exit(1)
 
 
+# `python main.py --web` starts the browser version (app.py) instead of the desktop
+# window. It needs only flask + pymupdf, not OpenCV/MediaPipe/PyAutoGUI/Tk.
+if "--web" in sys.argv:
+    sys.argv.remove("--web")
+    from App import main as _run_web
+
+    _run_web()
+    sys.exit(0)
+
+# `python main.py --remote` starts the helper that lets the HOSTED web page control
+# PowerPoint on this PC (needs only flask + pywin32, no camera packages).
+if "--remote" in sys.argv:
+    sys.argv.remove("--remote")
+    from remote_bridge  import main as _run_remote
+
+    _run_remote()
+    sys.exit(0)
+
 _check_dependencies()
 
 import cv2  # noqa: E402
@@ -81,9 +108,10 @@ VK_ESCAPE = 0x1B
 class Application:
     """Owns the window, the worker thread and all shared state."""
 
-    def __init__(self) -> None:
+    def __init__(self, headless: bool = False) -> None:
         self.ppt = PowerPointController()
         self.stabilizer = GestureStabilizer()
+        self.headless = headless
 
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -92,7 +120,7 @@ class Application:
         self._snapshot = UISnapshot()
         self._frame_id = 0
         self._history: Deque[Tuple[str, str, str]] = deque(maxlen=5)
-        self._status = "Camera starting... Click START when your slides are ready."
+        self._status = "Camera starting... Click CHOOSE PRESENTATION FILE to begin."
         self._warning = ""
         self._warning_until = 0.0
         self._fatal_error = ""
@@ -101,20 +129,35 @@ class Application:
         self._last_action_time = -1e9
         self._last_debug_gesture: Optional[str] = None
         self._esc_was_down = False
+        self._selected_file = ""
+        self._file_name = ""
+        self._ui_queue: "queue.Queue[Tuple[str, int]]" = queue.Queue()  # worker -> Tk thread
 
-        self.window = MainWindow(
-            get_snapshot=self._get_snapshot,
-            on_start=self.start_presentation,
-            on_stop=self.stop_control,
-            on_quit=self.quit,
-            on_next=self.manual_next,
-            on_previous=self.manual_previous,
-        )
+        self.window = None
+        if not headless:
+            self.window = MainWindow(
+                get_snapshot=self._get_snapshot,
+                on_start=self.start_presentation,
+                on_stop=self.stop_control,
+                on_quit=self.quit,
+                on_next=self.manual_next,
+                on_previous=self.manual_previous,
+                on_choose=self.choose_presentation,
+            )
         self._worker = threading.Thread(target=self._worker_loop, name="camera-worker", daemon=True)
 
     # ------------------------------------------------------------ lifecycle
+    def start_worker(self) -> None:
+        if not self._worker.is_alive():
+            self._worker.start()
+
     def run(self) -> None:
-        self._worker.start()
+        self.start_worker()
+        if self.window is None:
+            while not self._stop_event.is_set():
+                self._stop_event.wait(0.2)
+            return
+
         self.window.root.after(50, self._poll_hotkeys)
         try:
             self.window.run()
@@ -123,7 +166,11 @@ class Application:
 
     def quit(self) -> None:
         self._control_enabled.clear()
-        self.window.root.quit()  # ends mainloop -> run() calls _shutdown()
+        self._stop_event.set()
+        if self.window is not None:
+            self.window.root.quit()  # ends mainloop -> run() calls _shutdown()
+        else:
+            self._shutdown()
 
     def _shutdown(self) -> None:
         self._stop_event.set()
@@ -137,14 +184,58 @@ class Application:
             pass
 
     # ------------------------------------------------- UI-thread callbacks
+    def choose_presentation(self) -> None:
+        """Main button: pick a file, open it, then run the countdown automatically."""
+        if self._fatal_error:
+            return
+        from tkinter import filedialog  # imported here so `--web` mode needs no Tk
+        path = filedialog.askopenfilename(
+            parent=self.window.root,
+            title="Choose the presentation you want to present",
+            filetypes=config.PRESENTATION_FILE_TYPES,
+        )
+        if not path:
+            return  # user cancelled the dialog
+        path = os.path.normpath(path)
+        with self._lock:
+            self._selected_file = path
+            self._file_name = os.path.basename(path)
+        self._debug(f"File chosen: {path}")
+        self.start_presentation()
+
     def start_presentation(self) -> None:
-        """START button: 3-2-1-GO countdown, then start slideshow + enable control."""
+        """Open the chosen file (if any), then 3-2-1-GO, slideshow and gesture control."""
         if self._fatal_error:
             return
         self._countdown_token += 1
         token = self._countdown_token
-        self._set_status("Get ready...")
-        self._countdown_step(config.COUNTDOWN_SECONDS, token)
+        self._control_enabled.clear()
+        self.stabilizer.reset()
+        if not self._selected_file:
+            self._set_status("Get ready...")
+            self._countdown_step(config.COUNTDOWN_SECONDS, token)
+            return
+        self._set_status(f"Opening {self._file_name} ... please wait.")
+        threading.Thread(
+            target=self._open_file_then_countdown, args=(self._selected_file, token),
+            name="open-file", daemon=True,
+        ).start()
+
+    def _open_file_then_countdown(self, path: str, token: int) -> None:
+        """Runs in a helper thread so the window never freezes while PowerPoint loads."""
+        cancelled = lambda: token != self._countdown_token  # noqa: E731
+        ok, message = self.ppt.open_file(path)
+        if not ok:
+            self._set_warning(message)
+            self._set_status("Could not open the file. Choose another one.")
+            return
+        if not self.ppt.wait_for_presentation(path, config.OPEN_FILE_TIMEOUT, cancelled):
+            if not cancelled():
+                self._set_warning("The presentation window did not appear.\nOpen it manually, then click START / RESTART.")
+                self._set_status("Presentation did not open in time.")
+            return
+        if not cancelled():
+            self._ui_queue.put(("countdown", token))  # Tk work must happen on the Tk thread
 
     def _countdown_step(self, remaining: int, token: int) -> None:
         if token != self._countdown_token:
@@ -200,7 +291,18 @@ class Application:
                 self.stop_control()
                 self._set_warning("Emergency stop (ESC): gesture control disabled.")
             self._esc_was_down = down
+        self._drain_ui_queue()
         self.window.root.after(50, self._poll_hotkeys)
+
+    def _drain_ui_queue(self) -> None:
+        while True:
+            try:
+                kind, token = self._ui_queue.get_nowait()
+            except queue.Empty:
+                return
+            if kind == "countdown" and token == self._countdown_token:
+                self._set_status("Get ready...")
+                self._countdown_step(config.COUNTDOWN_SECONDS, token)
 
     # ------------------------------------------------------- shared state
     def _get_snapshot(self) -> UISnapshot:
@@ -240,6 +342,7 @@ class Application:
                 control_enabled=self._control_enabled.is_set(),
                 status=self._status,
                 warning=warning,
+                file_name=self._file_name,
                 history=list(self._history),
                 **fields,
             )

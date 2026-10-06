@@ -14,6 +14,8 @@ which window is in front, and can bring the PowerPoint window to the front.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 import time
 from typing import List, Tuple
@@ -135,3 +137,34 @@ class PowerPointController:
             return True, "Slideshow already running."
         ok, message = self._press(config.START_SLIDESHOW_KEY)
         return ok, message or "Slideshow started."
+
+    # -- open a file chosen by the user --------------------------------------
+    def open_file(self, path: str) -> Tuple[bool, str]:
+        """Open a presentation file with the program Windows associates with it."""
+        if not os.path.isfile(path):
+            return False, f"File not found:\n{path}"
+        try:
+            if IS_WINDOWS:
+                os.startfile(path)  # type: ignore[attr-defined]  # noqa: S606
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except Exception as exc:  # noqa: BLE001
+            return False, f"Could not open the file: {exc}"
+        return True, ""
+
+    def wait_for_presentation(self, path: str, timeout: float, cancelled=lambda: False) -> bool:
+        """Wait until a window for this file shows up (Windows). True when found."""
+        if not IS_WINDOWS:
+            time.sleep(3.0)
+            return True
+        stem = os.path.splitext(os.path.basename(path))[0].lower()
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not cancelled():
+            for _hwnd, title in _find_presentation_windows():
+                if stem in title.lower():
+                    time.sleep(1.5)  # let PowerPoint finish loading
+                    return True
+            time.sleep(0.4)
+        return False

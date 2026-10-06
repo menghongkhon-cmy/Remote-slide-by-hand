@@ -88,6 +88,12 @@ ACTION_LABELS = {
 NEXT_KEY = "right"
 PREVIOUS_KEY = "left"
 START_SLIDESHOW_KEY = "f5"
+# File picker ("Choose presentation" button)
+PRESENTATION_FILE_TYPES = [
+    ("PowerPoint presentations", "*.pptx *.ppsx *.pptm *.ppt *.pps *.odp"),
+    ("All files", "*.*"),
+]
+OPEN_FILE_TIMEOUT = 30.0            # seconds to wait for PowerPoint to open the file
 # If True, slide keys are only sent when a presentation window is in front.
 # This stops the arrow keys from landing in some other program.
 REQUIRE_POWERPOINT_ACTIVE = True
@@ -127,3 +133,19 @@ COLORS = {
     "button_neutral": "#2a3350",
     "button_neutral_hover": "#37426a",
 }
+# ---------------------------------------------------------------------------
+# Web version (app.py / `python main.py --web`)
+# ---------------------------------------------------------------------------
+WEB_HOST = "127.0.0.1"          # use "0.0.0.0" to open it to other devices on your network
+WEB_PORT = 5000                 # the hosting platform's PORT variable overrides this
+WEB_DATA_DIR = "data"           # converted slide images are stored here
+WEB_MAX_UPLOAD_MB = 100
+WEB_KEEP_HOURS = 2              # uploaded decks are deleted after this many hours
+WEB_RENDER_SCALE = 1.6          # PDF -> image zoom (higher = sharper but slower)
+WEB_PPT_EXPORT_SCALE = 2.0      # PowerPoint export: pixels per point (2.0 = sharp text)
+WEB_CONVERT_TIMEOUT = 180       # seconds before a LibreOffice conversion is cancelled
+# ---------------------------------------------------------------------------
+# Remote helper (`python main.py --remote`): hosted web page -> PowerPoint on this PC
+# ---------------------------------------------------------------------------
+REMOTE_PORT = 5001              # the web page talks to http://127.0.0.1:<this port>
+REMOTE_TOKEN = ""               # "" = a new random 6-digit code every start; or set your own fixed code

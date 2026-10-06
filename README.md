@@ -8,6 +8,7 @@ HandSlide Controller lets you control a PowerPoint presentation with hand gestur
 
 - Hand tracking (21 landmarks, one hand) with live drawing on the webcam preview
 - Gesture recognition: open palm, pointing left/right, fist, thumbs up
+- **Choose a presentation file and present it automatically** (open file, start slideshow, enable gestures)
 - Next slide / previous slide / start presentation
 - Real-time webcam preview with gesture, confidence, action and FPS overlay
 - Gesture history (latest 5 actions)
@@ -57,11 +58,13 @@ python main.py
 ## Usage
 
 1. Connect your webcam.
-2. Open PowerPoint with your presentation.
-3. Run the application (`python main.py`). The camera starts, but **nothing controls PowerPoint yet**.
-4. Click **🎬 START PRESENTATION**. You get a 3-2-1-GO countdown (shown on the camera image), then the app brings PowerPoint to the front, presses F5 and enables gesture control. You can also switch control on by showing a 👍 thumbs up.
-5. Show one hand to the camera, palm facing it, roughly 40–100 cm away.
+2. Run the application (`python main.py`). The camera starts, but **nothing controls PowerPoint yet**.
+3. Click **📂 CHOOSE PRESENTATION FILE** (or press `Ctrl+O`) and pick your `.pptx` file.
+4. The app opens the file in PowerPoint, waits until it has loaded, shows a 3-2-1-GO countdown on the camera image, presses F5 to start the slideshow, and switches gesture control on. No other clicks needed.
+5. Show one hand to the camera, palm facing it, roughly 40-100 cm away.
 6. Use the gestures below. Click **⏹ STOP CONTROL** or press **ESC** to switch control off; the webcam preview keeps running.
+
+To present a different file, just click **CHOOSE PRESENTATION FILE** again. **START / RESTART** re-opens the file you already chose. If you have not chosen a file, it works on a presentation you already opened yourself.
 
 ## Gestures
 

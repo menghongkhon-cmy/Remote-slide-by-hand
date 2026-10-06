@@ -38,6 +38,7 @@ class UISnapshot:
     hold_progress: float = 0.0
     status: str = ""
     warning: str = ""
+    file_name: str = ""                   # presentation chosen by the user
     history: List[Tuple[str, str, str]] = field(default_factory=list)
 
 
@@ -50,6 +51,7 @@ class MainWindow:
         on_quit: Callable[[], None],
         on_next: Callable[[], None],
         on_previous: Callable[[], None],
+        on_choose: Callable[[], None],
     ) -> None:
         self._get_snapshot = get_snapshot
         self._last_frame_id = -1
@@ -62,12 +64,13 @@ class MainWindow:
         self.root.minsize(1040, 740)
         self._set_icon()
 
-        self._build(on_start, on_stop, on_next, on_previous)
+        self._build(on_start, on_stop, on_next, on_previous, on_choose)
 
         # Keyboard fallback / safety keys (work while this window is focused).
         self.root.bind("<Escape>", lambda _e: on_stop())
         self.root.bind("<q>", lambda _e: on_quit())
         self.root.bind("<Q>", lambda _e: on_quit())
+        self.root.bind("<Control-o>", lambda _e: on_choose())
         self.root.bind("<Right>", lambda _e: on_next())
         self.root.bind("<Left>", lambda _e: on_previous())
         self.root.protocol("WM_DELETE_WINDOW", on_quit)
@@ -101,7 +104,7 @@ class MainWindow:
         button.bind("<Leave>", lambda _e: button.configure(bg=bg))
         return button
 
-    def _build(self, on_start, on_stop, on_next, on_previous) -> None:
+    def _build(self, on_start, on_stop, on_next, on_previous, on_choose) -> None:
         c = config.COLORS
         root = self.root
 
@@ -189,11 +192,22 @@ class MainWindow:
         self.hold_bar.pack(fill="x", padx=14, pady=(2, 12))
         self._hold_rect = self.hold_bar.create_rectangle(0, 0, 0, 8, fill=c["accent"], width=0)
 
+        # Presentation file picker (the main way to start)
+        file_card = self._card(right, fill="x", pady=(0, 10))
+        self._button(
+            file_card, "📂 CHOOSE PRESENTATION FILE", c["accent"], "#6aa0ff", on_choose
+        ).pack(fill="x", padx=14, pady=(12, 6))
+        self.file_label = tk.Label(
+            file_card, text="No file selected", bg=c["card"], fg=c["muted"],
+            font=(FONT, 10), anchor="w", wraplength=380, justify="left",
+        )
+        self.file_label.pack(fill="x", padx=14, pady=(0, 12))
+
         # Buttons
         buttons = tk.Frame(right, bg=c["bg"])
         buttons.pack(fill="x", pady=(0, 10))
         self._button(
-            buttons, "🎬 START PRESENTATION", c["success"], c["success_hover"], on_start
+            buttons, "🎬 START / RESTART", c["success"], c["success_hover"], on_start
         ).pack(side="left", expand=True, fill="x", padx=(0, 6))
         self._button(
             buttons, "⏹ STOP CONTROL", c["danger"], c["danger_hover"], on_stop
@@ -227,7 +241,7 @@ class MainWindow:
             footer, "Next →", c["button_neutral"], c["button_neutral_hover"], on_next
         ).pack(side="right")
         tk.Label(
-            root, text="Keyboard:  →  Next    ←  Previous    ESC  Stop    Q  Quit",
+            root, text="Keyboard:  Ctrl+O  Choose file    →  Next    ←  Previous    ESC  Stop    Q  Quit",
             bg=c["bg"], fg=c["muted"], font=(FONT, 9),
         ).pack(pady=(0, 8))
 
@@ -292,6 +306,12 @@ class MainWindow:
                 label.configure(text=f"{stamp}  {gesture_text:<16} → {action_text}")
             else:
                 label.configure(text="")
+
+        # Chosen file
+        if snap.file_name:
+            self.file_label.configure(text=f"📄 {snap.file_name}", fg=c["text"])
+        else:
+            self.file_label.configure(text="No file selected", fg=c["muted"])
 
         # Message bar: warnings win over the normal status text
         if snap.warning:
