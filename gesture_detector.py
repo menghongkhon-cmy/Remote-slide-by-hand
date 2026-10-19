@@ -7,6 +7,7 @@ Responsibilities
 * Work out which fingers are OPEN / CLOSED from the 21 landmarks.
 * Classify the hand as OPEN_PALM, FIST, THUMBS_UP, POINT_LEFT, POINT_RIGHT
   (or UNKNOWN when unsure).
+* Detect a SMILE with the MediaPipe FaceLandmarker (mouth-smile blendshapes).
 * GestureStabilizer: turns the noisy per-frame result into ONE clean trigger
   (hold time + cooldown + "release before repeat").
 
@@ -37,6 +38,7 @@ class Gesture:
     THUMBS_UP = "THUMBS_UP"
     POINT_LEFT = "POINT_LEFT"
     POINT_RIGHT = "POINT_RIGHT"
+    SMILE = "SMILE"       # face smiling (from the FaceLandmarker, not the hand)
     UNKNOWN = "UNKNOWN"   # hand visible but gesture unclear / low confidence
     NONE = "NONE"         # no hand visible
 
@@ -48,6 +50,7 @@ ACTIONABLE_GESTURES = (
     Gesture.THUMBS_UP,
     Gesture.POINT_LEFT,
     Gesture.POINT_RIGHT,
+    Gesture.SMILE,
 )
 
 # --- MediaPipe landmark indices -------------------------------------------
@@ -252,28 +255,30 @@ HAND_CONNECTIONS = (
 MIN_MODEL_BYTES = 1_000_000
 
 
-def _model_path() -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), config.MODEL_FILE)
+def _model_path(filename: str = "") -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename or config.MODEL_FILE)
 
 
 def _model_ok(path: str) -> bool:
     return os.path.isfile(path) and os.path.getsize(path) >= MIN_MODEL_BYTES
 
 
-def _ensure_model() -> str:
+def _ensure_model(filename: str = "", url: str = "") -> str:
     """Return the path of a valid model file, downloading it if needed."""
-    path = _model_path()
+    filename = filename or config.MODEL_FILE
+    url = url or config.MODEL_URL
+    path = _model_path(filename)
     if _model_ok(path):
         return path
 
     if os.path.exists(path):
-        print(f"[INFO] {config.MODEL_FILE} is damaged or incomplete - downloading a fresh copy.", flush=True)
+        print(f"[INFO] {filename} is damaged or incomplete - downloading a fresh copy.", flush=True)
     else:
-        print(f"[INFO] {config.MODEL_FILE} not found - downloading it (one time, ~8 MB)...", flush=True)
+        print(f"[INFO] {filename} not found - downloading it (one time, ~8 MB)...", flush=True)
 
     tmp = path + ".part"
     try:
-        with urllib.request.urlopen(config.MODEL_URL, timeout=30) as response:
+        with urllib.request.urlopen(url, timeout=30) as response:
             data = response.read()
         if len(data) < MIN_MODEL_BYTES:
             raise ValueError("downloaded file is too small")
@@ -287,7 +292,7 @@ def _ensure_model() -> str:
             pass
         raise GestureDetectorError(
             f"Hand model file missing or invalid, and the download failed ({exc}).\n\n"
-            f"Download it manually from:\n{config.MODEL_URL}\n"
+            f"Download it manually from:\n{url}\n"
             f"and save it as:\n{path}"
         ) from exc
     print("[INFO] Model downloaded.", flush=True)
@@ -300,6 +305,7 @@ class HandResult:
     gesture: str = Gesture.NONE
     confidence: float = 0.0
     landmarks: Optional[List[Point]] = None  # 21 (x, y) points in pixels
+    smile_score: float = 0.0                 # 0..1 average of the two mouth-smile blendshapes
 
 
 class GestureDetector:
@@ -331,6 +337,7 @@ class GestureDetector:
             raise GestureDetectorError(
                 f"Hand tracking initialization failed.\n({type(exc).__name__}: {exc})"
             ) from exc
+        self._face = self._create_face_landmarker()  # None if smile control is off / unavailable
 
     def process(self, frame_bgr) -> HandResult:
         """Detect the hand in a BGR frame and classify the gesture."""
@@ -343,6 +350,18 @@ class GestureDetector:
             ts_ms = self._last_ts_ms + 1
         self._last_ts_ms = ts_ms
 
+        result = self._detect_hand(image, ts_ms, frame_bgr.shape)
+
+        # A smile only counts when the hand is not making a real gesture, so a
+        # fist / pointing / open palm always wins over the face.
+        if self._face is not None and result.gesture in (Gesture.NONE, Gesture.UNKNOWN):
+            result.smile_score = self._smile_score(image, ts_ms)
+            if result.smile_score >= config.SMILE_THRESHOLD:
+                result.gesture = Gesture.SMILE
+                result.confidence = result.smile_score
+        return result
+
+    def _detect_hand(self, image, ts_ms: int, shape) -> HandResult:
         results = self._landmarker.detect_for_video(image, ts_ms)
         if not results.hand_landmarks:
             return HandResult(hand_detected=False)
@@ -352,10 +371,43 @@ class GestureDetector:
             # Used as a rough "how sure is MediaPipe about this hand" signal.
             score = results.handedness[0][0].score
 
-        height, width = frame_bgr.shape[:2]
+        height, width = shape[:2]
         pts = [(lm.x * width, lm.y * height) for lm in results.hand_landmarks[0]]
         gesture, confidence = detect_hand_gesture(pts, score)
         return HandResult(True, gesture, confidence, pts)
+
+    # -- smile (FaceLandmarker blendshapes) ----------------------------------
+    def _create_face_landmarker(self):
+        """Create the face model used for smile detection. Never raises: on any
+        problem smile control is simply disabled and the hand gestures still work."""
+        if not getattr(config, "ENABLE_SMILE", True):
+            return None
+        try:
+            from mediapipe.tasks.python import BaseOptions, vision
+
+            path = _ensure_model(config.FACE_MODEL_FILE, config.FACE_MODEL_URL)
+            with open(path, "rb") as handle:
+                data = handle.read()
+            options = vision.FaceLandmarkerOptions(
+                base_options=BaseOptions(model_asset_buffer=data),
+                running_mode=vision.RunningMode.VIDEO,
+                num_faces=1,
+                output_face_blendshapes=True,
+            )
+            return vision.FaceLandmarker.create_from_options(options)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] Smile control disabled: {exc}", flush=True)
+            return None
+
+    def _smile_score(self, image, ts_ms: int) -> float:
+        try:
+            result = self._face.detect_for_video(image, ts_ms)
+        except Exception:  # noqa: BLE001
+            return 0.0
+        if not result.face_blendshapes:
+            return 0.0
+        scores = {c.category_name: c.score for c in result.face_blendshapes[0]}
+        return (scores.get("mouthSmileLeft", 0.0) + scores.get("mouthSmileRight", 0.0)) / 2.0
 
     def draw(self, frame_bgr, result: HandResult) -> None:
         """Draw the 21 landmarks and connections onto the frame (in place)."""
@@ -369,10 +421,12 @@ class GestureDetector:
             cv2.circle(frame_bgr, point, 4, (0, 140, 255), -1, cv2.LINE_AA)
 
     def close(self) -> None:
-        try:
-            self._landmarker.close()
-        except Exception:  # noqa: BLE001
-            pass
+        for model in (getattr(self, "_landmarker", None), getattr(self, "_face", None)):
+            try:
+                if model is not None:
+                    model.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 # ---------------------------------------------------------------------------

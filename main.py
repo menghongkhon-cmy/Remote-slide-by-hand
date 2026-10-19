@@ -4,8 +4,8 @@ main.py - HandSlide Controller entry point.
 Flow
 ----
     App starts -> camera starts -> user clicks CHOOSE PRESENTATION FILE and picks
-    a .pptx -> the file opens -> 3-2-1-GO -> slideshow starts (F5) -> gesture
-    control ON -> hand gestures change slides.
+    a PowerPoint file or PDF -> PowerPoint opens externally or PDF opens in the
+    built-in viewer -> 3-2-1-GO -> presentation starts -> gesture control ON.
 
 Usage
 -----
@@ -98,6 +98,7 @@ from gesture_detector import (  # noqa: E402
     GestureStabilizer,
     HandResult,
 )
+from pdf_viewer import PdfPresenter  # noqa: E402
 from powerpoint_controller import PowerPointController  # noqa: E402
 from ui import MainWindow, UISnapshot  # noqa: E402
 
@@ -144,6 +145,8 @@ class Application:
                 on_previous=self.manual_previous,
                 on_choose=self.choose_presentation,
             )
+        # PDF files are shown by our own fullscreen viewer (PowerPoint files open in PowerPoint).
+        self.pdf = PdfPresenter(self.window.root) if self.window is not None else None
         self._worker = threading.Thread(target=self._worker_loop, name="camera-worker", daemon=True)
 
     # ------------------------------------------------------------ lifecycle
@@ -216,6 +219,23 @@ class Application:
             self._countdown_step(config.COUNTDOWN_SECONDS, token)
             return
         self._set_status(f"Opening {self._file_name} ... please wait.")
+        if self._is_pdf(self._selected_file):
+            # Tk windows must be created on this (Tk) thread, so the PDF opens here.
+            if self.pdf is None:
+                self._set_warning("PDF files need the desktop window.")
+                return
+            ok, message = self.pdf.open(self._selected_file)
+            if not ok:
+                self._set_warning(message)
+                self._set_status("Could not open the PDF. Choose another file.")
+                from tkinter import messagebox
+                messagebox.showerror("HandSlide - PDF", message, parent=self.window.root)
+                return
+            self._set_status("Get ready...")
+            self._countdown_step(config.COUNTDOWN_SECONDS, token)  # no waiting needed: our own window
+            return
+        elif self.pdf is not None:
+            self.pdf.close()  # switching from a PDF back to PowerPoint
         threading.Thread(
             target=self._open_file_then_countdown, args=(self._selected_file, token),
             name="open-file", daemon=True,
@@ -224,7 +244,10 @@ class Application:
     def _open_file_then_countdown(self, path: str, token: int) -> None:
         """Runs in a helper thread so the window never freezes while PowerPoint loads."""
         cancelled = lambda: token != self._countdown_token  # noqa: E731
-        ok, message = self.ppt.open_file(path)
+        if self._is_pdf(path):
+            ok, message = True, ""  # already opened by the built-in viewer
+        else:
+            ok, message = self.ppt.open_file(path)
         if not ok:
             self._set_warning(message)
             self._set_status("Could not open the file. Choose another one.")
@@ -237,6 +260,10 @@ class Application:
         if not cancelled():
             self._ui_queue.put(("countdown", token))  # Tk work must happen on the Tk thread
 
+    @staticmethod
+    def _is_pdf(path: str) -> bool:
+        return path.lower().endswith(".pdf")
+
     def _countdown_step(self, remaining: int, token: int) -> None:
         if token != self._countdown_token:
             return  # cancelled by STOP or a newer START
@@ -246,9 +273,12 @@ class Application:
             return
 
         self._set_countdown("GO!")
-        ok, message = self.ppt.start_slideshow()
-        if not ok:
-            self._set_warning(message)
+        if self._pdf_open():
+            self.pdf.show()
+        else:
+            ok, message = self.ppt.start_slideshow()
+            if not ok:
+                self._set_warning(message)
         self._last_action_time = time.monotonic()  # no gesture fires instantly
         self.stabilizer.reset()
         self._control_enabled.set()
@@ -267,12 +297,25 @@ class Application:
         if was_enabled:
             self._debug("Control DISABLED")
 
+    def _pdf_open(self) -> bool:
+        return self.pdf is not None and self.pdf.is_open
+
+    def _go(self, delta: int, focus_first: bool = False) -> Tuple[bool, str]:
+        """Next (+1) / previous (-1) slide. A PDF is changed directly (no window focus needed);
+        PowerPoint gets the arrow key."""
+        if self._pdf_open():
+            self._ui_queue.put(("pdf_next" if delta > 0 else "pdf_prev", 0))  # Tk work on the Tk thread
+            return True, ""
+        if delta > 0:
+            return self.ppt.next_slide(focus_first=focus_first)
+        return self.ppt.previous_slide(focus_first=focus_first)
+
     def manual_next(self) -> None:
-        ok, message = self.ppt.next_slide(focus_first=True)
+        ok, message = self._go(1, focus_first=True)
         self._manual_result(ok, message, "Keyboard →", "NEXT")
 
     def manual_previous(self) -> None:
-        ok, message = self.ppt.previous_slide(focus_first=True)
+        ok, message = self._go(-1, focus_first=True)
         self._manual_result(ok, message, "Keyboard ←", "PREVIOUS")
 
     def _manual_result(self, ok: bool, message: str, label: str, action: str) -> None:
@@ -291,8 +334,22 @@ class Application:
                 self.stop_control()
                 self._set_warning("Emergency stop (ESC): gesture control disabled.")
             self._esc_was_down = down
+        self._update_pdf_hud()
         self._drain_ui_queue()
         self.window.root.after(50, self._poll_hotkeys)
+
+    def _update_pdf_hud(self) -> None:
+        """Show the current gesture inside the PDF window (visible even in fullscreen)."""
+        if not self._pdf_open():
+            return
+        snap = self._get_snapshot()
+        text = ""
+        if snap.gesture not in (Gesture.NONE, Gesture.UNKNOWN):
+            emoji, name = config.GESTURE_INFO.get(snap.gesture, ("", snap.gesture))
+            text = f"{emoji} {name}"
+            if snap.hold_progress > 0:
+                text += f"  {snap.hold_progress * 100:.0f}%"
+        self.pdf.set_hud(text)
 
     def _drain_ui_queue(self) -> None:
         while True:
@@ -300,11 +357,20 @@ class Application:
                 kind, token = self._ui_queue.get_nowait()
             except queue.Empty:
                 return
-            if kind == "countdown" and token == self._countdown_token:
+            if kind == "pdf_next" and self.pdf is not None:
+                self.pdf.next()
+            elif kind == "pdf_prev" and self.pdf is not None:
+                self.pdf.previous()
+            elif kind == "countdown" and token == self._countdown_token:
                 self._set_status("Get ready...")
                 self._countdown_step(config.COUNTDOWN_SECONDS, token)
 
     # ------------------------------------------------------- shared state
+    def _display_name(self) -> str:
+        if self._file_name and self._pdf_open():
+            return f"{self._file_name}  (page {self.pdf.page_number} / {self.pdf.page_count})"
+        return self._file_name
+
     def _get_snapshot(self) -> UISnapshot:
         with self._lock:
             return self._snapshot
@@ -342,7 +408,7 @@ class Application:
                 control_enabled=self._control_enabled.is_set(),
                 status=self._status,
                 warning=warning,
-                file_name=self._file_name,
+                file_name=self._display_name(),
                 history=list(self._history),
                 **fields,
             )
@@ -462,7 +528,7 @@ class Application:
 
         if gesture != self._last_debug_gesture:
             self._last_debug_gesture = gesture
-            if result.hand_detected:
+            if result.hand_detected or gesture == Gesture.SMILE:
                 self._debug(
                     f"Gesture: {gesture} | Action: {config.GESTURE_ACTIONS.get(gesture, 'NONE')} | "
                     f"Cooldown: {'READY' if ready else f'{cooldown_remaining:.1f}s'} | "
@@ -475,9 +541,9 @@ class Application:
         ok, message = True, ""
 
         if action == "NEXT":
-            ok, message = self.ppt.next_slide()
+            ok, message = self._go(1)
         elif action == "PREVIOUS":
-            ok, message = self.ppt.previous_slide()
+            ok, message = self._go(-1)
         elif action == "ENABLE":
             if self._control_enabled.is_set():
                 return
@@ -508,10 +574,10 @@ class Application:
         cv2.rectangle(frame, (0, 0), (290, 112), (20, 24, 36), -1)
         cv2.addWeighted(panel, 0.35, frame[0:112, 0:290], 0.65, 0, frame[0:112, 0:290])
 
-        if result.hand_detected:
+        if result.hand_detected or result.gesture == Gesture.SMILE:
             _, name = config.GESTURE_INFO.get(result.gesture, ("", result.gesture))
             lines = [
-                ("Hand detected", (80, 220, 120)),
+                ("Hand detected" if result.hand_detected else "Smile detected", (80, 220, 120)),
                 (f"Gesture: {name}", (255, 255, 255)),
                 (f"Confidence: {result.confidence * 100:.0f}%" if result.confidence > 0 else "Confidence: --",
                  (255, 255, 255)),

@@ -2,13 +2,14 @@
 
 **Control Your Presentation With Your Hands**
 
-HandSlide Controller lets you control a PowerPoint presentation with hand gestures seen by your webcam. It tracks your hand with MediaPipe, recognises gestures, and presses the slide keys for you (→ next, ← previous). Nothing is ever changed inside your `.pptx` file.
+HandSlide Controller lets you control PowerPoint presentations and PDF documents with hand gestures seen by your webcam. It tracks your hand with MediaPipe and advances or reverses slides/pages for you. Nothing is ever changed inside your presentation files.
 
 ## Features
 
 - Hand tracking (21 landmarks, one hand) with live drawing on the webcam preview
 - Gesture recognition: open palm, pointing left/right, fist, thumbs up
 - **Choose a presentation file and present it automatically** (open file, start slideshow, enable gestures)
+- Present `.pdf` files in the built-in viewer (PyMuPDF); no external PDF reader is needed
 - Next slide / previous slide / start presentation
 - Real-time webcam preview with gesture, confidence, action and FPS overlay
 - Gesture history (latest 5 actions)
@@ -24,6 +25,7 @@ HandSlide Controller lets you control a PowerPoint presentation with hand gestur
 | `main.py` | Starts everything. Runs the camera/gesture worker thread, applies cooldown, fires actions, draws the camera overlay. |
 | `gesture_detector.py` | MediaPipe HandLandmarker (Tasks API) wrapper + model auto-download, finger-state logic, gesture classification, and the `GestureStabilizer` (hold time, cooldown gate, release-before-repeat). |
 | `powerpoint_controller.py` | Sends `RIGHT` / `LEFT` / `F5` with PyAutoGUI; checks/focuses the PowerPoint window (Windows). |
+| `pdf_viewer.py` | Renders PDF pages in a built-in viewer and handles page navigation. |
 | `ui.py` | The Tkinter window only. Draws a snapshot and calls callbacks. |
 | `config.py` | All settings: cooldown, thresholds, gesture→action map, colours. |
 | `requirements.txt` | Python packages. |
@@ -31,7 +33,7 @@ HandSlide Controller lets you control a PowerPoint presentation with hand gestur
 
 ## Installation
 
-Requires **Windows 10/11** and **Python 3.10 – 3.12**. Needs internet on the first run: the app downloads the ~8 MB hand model (`hand_landmarker.task`) next to `main.py` automatically (or download it yourself from the `MODEL_URL` in `config.py`).
+Requires **Windows 10/11** and **Python 3.10 – 3.12**. PDF presentation uses PyMuPDF, which is installed with `requirements.txt`. Needs internet on the first run: the app downloads the ~8 MB hand model (`hand_landmarker.task`) next to `main.py` automatically (or download it yourself from the `MODEL_URL` in `config.py`).
 
 ```bash
 python -m venv venv
@@ -58,13 +60,13 @@ python main.py
 ## Usage
 
 1. Connect your webcam.
-2. Run the application (`python main.py`). The camera starts, but **nothing controls PowerPoint yet**.
-3. Click **📂 CHOOSE PRESENTATION FILE** (or press `Ctrl+O`) and pick your `.pptx` file.
-4. The app opens the file in PowerPoint, waits until it has loaded, shows a 3-2-1-GO countdown on the camera image, presses F5 to start the slideshow, and switches gesture control on. No other clicks needed.
+2. Run the application (`python main.py`). The camera starts, but **presentation control is not enabled yet**.
+3. Click **📂 CHOOSE PRESENTATION FILE** (or press `Ctrl+O`) and pick a PowerPoint file or `.pdf`.
+4. PowerPoint files open in PowerPoint; PDFs open in the built-in viewer. After a 3-2-1-GO countdown, the app starts the slideshow or displays the first PDF page and enables gesture control.
 5. Show one hand to the camera, palm facing it, roughly 40-100 cm away.
 6. Use the gestures below. Click **⏹ STOP CONTROL** or press **ESC** to switch control off; the webcam preview keeps running.
 
-To present a different file, just click **CHOOSE PRESENTATION FILE** again. **START / RESTART** re-opens the file you already chose. If you have not chosen a file, it works on a presentation you already opened yourself.
+To present a different file, just click **CHOOSE PRESENTATION FILE** again. **START / RESTART** re-opens the file you already chose. In the PDF viewer, use `F` or `F11` to toggle fullscreen, and `Esc` to leave fullscreen. If you have not chosen a file, START works on a presentation you already opened yourself.
 
 ## Gestures
 
@@ -84,7 +86,7 @@ The image is mirrored like a mirror, so pointing to **your** right moves right o
 
 | Key | Action |
 |---|---|
-| `→` / `←` | Next / previous slide (brings PowerPoint forward first) |
+| `→` / `←` | Next / previous slide or PDF page |
 | `ESC` | Emergency stop of gesture control (works globally on Windows, even while PowerPoint is focused) |
 | `Q` | Quit (when the HandSlide window is focused) |
 

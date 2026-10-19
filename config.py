@@ -38,10 +38,22 @@ MODEL_URL = (
 )
 
 # ---------------------------------------------------------------------------
+# Smile detection (smile = previous slide). Uses MediaPipe FaceLandmarker.
+# The face model (~4 MB) is downloaded automatically the first time.
+# ---------------------------------------------------------------------------
+ENABLE_SMILE = True             # False = turn smile control off completely
+SMILE_THRESHOLD = 0.5           # 0..1. Lower = triggers on smaller smiles, higher = needs a big smile
+FACE_MODEL_FILE = "face_landmarker.task"
+FACE_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
+    "face_landmarker/float16/1/face_landmarker.task"
+)
+
+# ---------------------------------------------------------------------------
 # Gesture stability / timing
 # ---------------------------------------------------------------------------
 STABLE_TIME = 0.5                   # a gesture must be held this long to trigger
-HOLD_TIMES = {"OPEN_PALM": 1.0}     # per-gesture override (open palm = hold ~1 s)
+HOLD_TIMES = {"OPEN_PALM": 1.0, "SMILE": 0.5}   # per-gesture override (open palm ~1 s, smile 0.5 s)
 FLICKER_TOLERANCE = 0.2             # ignore very short detection dropouts (seconds)
 # True  -> after an action fires, the gesture must be released (hand lowered or
 #          gesture changed) before it can fire again. Safest for demos.
@@ -54,7 +66,7 @@ WARNING_DISPLAY_SECONDS = 4.0
 # ---------------------------------------------------------------------------
 # Gesture -> action mapping. CHANGE GESTURES HERE.
 # Available actions: NEXT, PREVIOUS, NONE, ENABLE
-# Available gestures: OPEN_PALM, POINT_LEFT, POINT_RIGHT, FIST, THUMBS_UP
+# Available gestures: OPEN_PALM, POINT_LEFT, POINT_RIGHT, FIST, THUMBS_UP, SMILE
 # ---------------------------------------------------------------------------
 GESTURE_ACTIONS = {
     "OPEN_PALM": "NEXT",
@@ -62,6 +74,7 @@ GESTURE_ACTIONS = {
     "POINT_LEFT": "PREVIOUS",
     "FIST": "NONE",
     "THUMBS_UP": "ENABLE",
+    "SMILE": "PREVIOUS",       # smile = go back one slide
 }
 
 # (emoji, display name) for every gesture the UI can show
@@ -71,6 +84,7 @@ GESTURE_INFO = {
     "POINT_RIGHT": ("👉", "POINT RIGHT"),
     "FIST": ("✊", "FIST"),
     "THUMBS_UP": ("👍", "THUMBS UP"),
+    "SMILE": ("😊", "SMILE"),
     "UNKNOWN": ("❔", "UNKNOWN"),
     "NONE": ("…", "NONE"),
 }
@@ -90,9 +104,13 @@ PREVIOUS_KEY = "left"
 START_SLIDESHOW_KEY = "f5"
 # File picker ("Choose presentation" button)
 PRESENTATION_FILE_TYPES = [
+    ("PowerPoint & PDF", "*.pptx *.ppsx *.pptm *.ppt *.pps *.odp *.pdf"),
     ("PowerPoint presentations", "*.pptx *.ppsx *.pptm *.ppt *.pps *.odp"),
+    ("PDF documents", "*.pdf"),
     ("All files", "*.*"),
 ]
+# PDF files are shown in the built-in viewer window (see pdf_viewer.py).
+PDF_START_FULLSCREEN = False        # False = open in a normal window (press F or F11 for fullscreen)
 OPEN_FILE_TIMEOUT = 30.0            # seconds to wait for PowerPoint to open the file
 # If True, slide keys are only sent when a presentation window is in front.
 # This stops the arrow keys from landing in some other program.
@@ -119,19 +137,21 @@ POINT_DIRECTION_RATIO = 1.2         # |dx| must exceed |dy| * this
 # UI colours
 # ---------------------------------------------------------------------------
 COLORS = {
-    "bg": "#0f1420",
-    "card": "#1a2133",
-    "card_border": "#2a3350",
-    "text": "#e8ecf5",
-    "muted": "#8a94ad",
-    "accent": "#4f8cff",
-    "success": "#2ecc71",
-    "success_hover": "#3fe083",
-    "danger": "#ff5468",
-    "danger_hover": "#ff7385",
-    "warning": "#ffb020",
-    "button_neutral": "#2a3350",
-    "button_neutral_hover": "#37426a",
+    "bg": "#0b0d1a",                 # deep midnight
+    "card": "#141831",               # indigo panel
+    "card_border": "#262c52",
+    "text": "#eef1ff",
+    "muted": "#8b92b8",
+    "accent": "#7c6cff",             # violet
+    "accent_hover": "#9588ff",
+    "accent2": "#27d3f5",            # cyan (used for gradients / highlights)
+    "success": "#34e0a1",            # mint
+    "success_hover": "#5cf0b8",
+    "danger": "#ff5d7a",             # coral
+    "danger_hover": "#ff8199",
+    "warning": "#ffb547",            # amber
+    "button_neutral": "#232a52",
+    "button_neutral_hover": "#323b6e",
 }
 # ---------------------------------------------------------------------------
 # Web version (app.py / `python main.py --web`)
