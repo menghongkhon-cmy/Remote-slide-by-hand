@@ -1,150 +1,630 @@
+
 # 🖐️ HandSlide Controller
+### Control Your Presentation With Your Hands & Smile 😊
 
-**Control Your Presentation With Your Hands**
+**HandSlide Controller** is a Python desktop application that allows you to control PowerPoint presentations and PDF documents using hand gestures and facial expressions through your webcam.
 
-HandSlide Controller lets you control PowerPoint presentations and PDF documents with hand gestures seen by your webcam. It tracks your hand with MediaPipe and advances or reverses slides/pages for you. Nothing is ever changed inside your presentation files.
+No mouse. No keyboard. Just your hands and your smile!
 
-## Features
+Built with **Python, OpenCV, MediaPipe, Tkinter, PyAutoGUI, and PyMuPDF**.
 
-- Hand tracking (21 landmarks, one hand) with live drawing on the webcam preview
-- Gesture recognition: open palm, pointing left/right, fist, thumbs up
-- **Choose a presentation file and present it automatically** (open file, start slideshow, enable gestures)
-- Present `.pdf` files in the built-in viewer (PyMuPDF); no external PDF reader is needed
-- Next slide / previous slide / start presentation
-- Real-time webcam preview with gesture, confidence, action and FPS overlay
-- Gesture history (latest 5 actions)
-- Cooldown protection + hold-to-trigger, so one wave never skips five slides
-- Modern dark UI with START / STOP buttons and a camera connection indicator
-- Safety: ESC emergency stop, Q to quit, camera released on exit
-- Debug mode (`DEBUG = True` in `config.py`)
+> ⚠️ **Development note:** Hand gesture features are implemented in the existing project. Smile recognition is a proposed new feature and requires additional implementation before it can be used.
 
-## Project structure
+---
 
-| File | Responsibility |
-|---|---|
-| `main.py` | Starts everything. Runs the camera/gesture worker thread, applies cooldown, fires actions, draws the camera overlay. |
-| `gesture_detector.py` | MediaPipe HandLandmarker (Tasks API) wrapper + model auto-download, finger-state logic, gesture classification, and the `GestureStabilizer` (hold time, cooldown gate, release-before-repeat). |
-| `powerpoint_controller.py` | Sends `RIGHT` / `LEFT` / `F5` with PyAutoGUI; checks/focuses the PowerPoint window (Windows). |
-| `pdf_viewer.py` | Renders PDF pages in a built-in viewer and handles page navigation. |
-| `ui.py` | The Tkinter window only. Draws a snapshot and calls callbacks. |
-| `config.py` | All settings: cooldown, thresholds, gesture→action map, colours. |
-| `requirements.txt` | Python packages. |
-| `assets/icon.png` | Window icon. |
+## 🌟 Features
 
-## Installation
+### 🖐️ Hand Gesture Control
+- ✋ Open palm → Next slide
+- 👉 Point right → Next slide
+- 👈 Point left → Previous slide
+- ✊ Fist → Pause / no action
+- 👍 Thumbs up → Enable gesture control
+- Track 21 hand landmarks using MediaPipe
+- Real-time gesture recognition
+- Gesture confidence detection
 
-Requires **Windows 10/11** and **Python 3.10 – 3.12**. PDF presentation uses PyMuPDF, which is installed with `requirements.txt`. Needs internet on the first run: the app downloads the ~8 MB hand model (`hand_landmarker.task`) next to `main.py` automatically (or download it yourself from the `MODEL_URL` in `config.py`).
+### 😊 Smile Recognition (New Feature)
+- 😊 Smile → Previous slide
+- Detect facial landmarks using webcam
+- Estimate smile confidence from mouth landmarks
+- Adjustable smile detection sensitivity
+- Hold-to-trigger to prevent accidental actions
+- Cooldown protection after changing a slide
+- Release-before-repeat so one smile cannot skip multiple slides
+
+**Important:** The smile feature must be implemented with a MediaPipe face landmark detector or equivalent facial-expression classifier.
+
+### 🖥️ Presentation Management
+- Open `.pptx`, `.ppt`, and `.pdf` files
+- Automatically start PowerPoint slideshow
+- Built-in PDF viewer using PyMuPDF
+- Next / Previous slide navigation
+- Keyboard navigation
+- Fullscreen presentation support
+- Presentation files are never modified
+
+### 📷 Smart Webcam
+- Live webcam preview
+- Hand landmark visualization
+- Facial landmark visualization (when face tracking is implemented)
+- Current gesture display
+- Smile confidence indicator (planned)
+- Current action and FPS overlay
+- Camera connection status
+
+### 🛡️ Safety & Stability
+- Gesture cooldown
+- Gesture stabilization
+- Hold-to-trigger recognition
+- Release-before-repeat protection
+- ESC emergency stop
+- Automatic camera release
+- Error handling
+- Debug mode
+
+---
+
+## 📂 Project Structure
+
+```text
+HandSlide-Controller/
+│
+├── main.py
+├── gesture_detector.py
+├── face_detector.py          # NEW: Smile detection
+├── powerpoint_controller.py
+├── pdf_viewer.py
+├── ui.py
+├── config.py
+├── requirements.txt
+├── README.md
+│
+├── assets/
+│   └── icon.png
+│
+└── hand_landmarker.task
+```
+
+### File Responsibilities
+
+| File | Description |
+|------|-------------|
+| `main.py` | Main application, webcam processing, gesture coordination |
+| `gesture_detector.py` | Hand detection and gesture recognition |
+| `face_detector.py` | New module for face landmarks and smile recognition |
+| `powerpoint_controller.py` | PowerPoint keyboard controls |
+| `pdf_viewer.py` | Built-in PDF viewer |
+| `ui.py` | Modern Tkinter desktop interface |
+| `config.py` | Application configuration |
+| `requirements.txt` | Required Python libraries |
+| `assets/icon.png` | Application icon |
+
+---
+
+## ⚙️ Installation
+
+### 1. Requirements
+
+- Windows 10 or Windows 11
+- Python 3.10–3.12
+- Working webcam
+- Microsoft PowerPoint for PowerPoint presentations
+- Internet connection for first-time hand model download
+
+### 2. Clone the Repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/HandSlide-Controller.git
+
+cd HandSlide-Controller
+```
+
+Replace `YOUR_USERNAME` with your actual GitHub username.
+
+Alternatively, download the project ZIP and extract it.
+
+### 3. Create a Virtual Environment
 
 ```bash
 python -m venv venv
 ```
 
-Windows:
+### 4. Activate the Environment
 
-```bash
+**Windows PowerShell:**
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+**Windows Command Prompt:**
+
+```cmd
 venv\Scripts\activate
 ```
 
-Install:
+### 5. Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-Run:
+Typical libraries used by the project:
+
+- `opencv-python`
+- `mediapipe`
+- `numpy`
+- `Pillow`
+- `pyautogui`
+- `PyMuPDF`
+- `pygetwindow`
+
+The existing requirements file should remain the source of truth for compatible dependency versions.
+
+### 6. Run the Application
 
 ```bash
 python main.py
 ```
 
-## Usage
+The HandSlide Controller interface should appear.
 
-1. Connect your webcam.
-2. Run the application (`python main.py`). The camera starts, but **presentation control is not enabled yet**.
-3. Click **📂 CHOOSE PRESENTATION FILE** (or press `Ctrl+O`) and pick a PowerPoint file or `.pdf`.
-4. PowerPoint files open in PowerPoint; PDFs open in the built-in viewer. After a 3-2-1-GO countdown, the app starts the slideshow or displays the first PDF page and enables gesture control.
-5. Show one hand to the camera, palm facing it, roughly 40-100 cm away.
-6. Use the gestures below. Click **⏹ STOP CONTROL** or press **ESC** to switch control off; the webcam preview keeps running.
+---
 
-To present a different file, just click **CHOOSE PRESENTATION FILE** again. **START / RESTART** re-opens the file you already chose. In the PDF viewer, use `F` or `F11` to toggle fullscreen, and `Esc` to leave fullscreen. If you have not chosen a file, START works on a presentation you already opened yourself.
+## 🚀 How to Use HandSlide Controller
 
-## Gestures
+### Step 1: Connect Your Camera 📷
 
-| Gesture | Action | How to do it |
-|---|---|---|
-| ✋ Open palm | Next slide | All five fingers spread. **Hold about 1 second.** |
-| 👉 Point right | Next slide | Only the index finger out, aimed to the right. Hold ~0.5 s. |
-| 👈 Point left | Previous slide | Only the index finger out, aimed to the left. Hold ~0.5 s. |
-| ✊ Fist | Pause / no action | Use it to rest your hand safely. |
-| 👍 Thumbs up | Enable control | Fist with thumb pointing up. |
+Make sure your webcam is connected and working.
 
-The image is mirrored like a mirror, so pointing to **your** right moves right on screen. Pointing straight up or at the camera is deliberately ignored.
+Open the application:
 
-**How it stays stable:** gesture seen → held long enough → cooldown ready → action → cooldown (`GESTURE_COOLDOWN`) → must **release** (lower hand, or change gesture) before the same gesture can fire again. Low-confidence results are shown as `UNKNOWN` and do nothing.
+```bash
+python main.py
+```
 
-## Keyboard
+The webcam preview should appear.
+
+Look for:
+
+```text
+Camera: CONNECTED ✅
+Hand Detection: READY ✅
+Gesture Control: DISABLED
+```
+
+The exact labels depend on your UI implementation.
+
+### Step 2: Choose Your Presentation 📂
+
+Click:
+
+**📂 CHOOSE PRESENTATION FILE**
+
+Or press:
+
+```text
+Ctrl + O
+```
+
+Select a supported file:
+
+```text
+my_presentation.pptx
+my_slides.ppt
+my_document.pdf
+```
+
+PowerPoint files open in Microsoft PowerPoint.
+
+PDF files open in the built-in PDF viewer.
+
+### Step 3: Start Presentation ▶️
+
+After choosing a file, the application displays a countdown:
+
+```text
+3...
+2...
+1...
+GO! 🚀
+```
+
+The presentation begins and gesture control becomes active.
+
+If you have already chosen a file, click **START / RESTART** to present it again.
+
+### Step 4: Position Yourself Correctly
+
+For reliable recognition:
+
+1. Stand approximately 40–100 cm from the webcam.
+2. Make sure your hand is fully visible.
+3. Face the webcam when using smile control.
+4. Use good lighting.
+5. Avoid covering your mouth.
+6. Keep your background reasonably clear.
+
+### Step 5: Control Your Presentation
+
+Use the following gestures.
+
+| Gesture | Action | Instructions |
+|---------|--------|--------------|
+| ✋ Open palm | Next slide | Show all five fingers for about 1 second |
+| 👉 Point right | Next slide | Point your index finger right for about 0.5 seconds |
+| 👈 Point left | Previous slide | Point your index finger left for about 0.5 seconds |
+| 😊 Smile | Previous slide | Smile clearly toward the webcam for about 1 second |
+| ✊ Fist | No action | Make a fist to rest safely |
+| 👍 Thumbs up | Enable control | Raise your thumb while other fingers remain folded |
+
+> 😊 **Smile-to-Previous is a planned feature until the face detector and controller integration are implemented.**
+
+### Step 6: Stop Presentation Control
+
+Click:
+
+**⏹ STOP CONTROL**
+
+Or press:
+
+```text
+ESC
+```
+
+This disables gesture control.
+
+The webcam preview can continue running.
+
+Press `Q` while the HandSlide application window is focused to quit.
+
+---
+
+## 😊 How Smile Recognition Should Work
+
+The new smile recognition feature will allow users to move backward through slides without raising their hands.
+
+### Example
+
+Imagine you are presenting Slide 5.
+
+```text
+Current Slide: 5
+
+        😊
+    You Smile
+         |
+         v
+ Webcam Detects Face
+         |
+         v
+ Smile Confidence Check
+         |
+         v
+ Hold for 1 Second
+         |
+         v
+ Cooldown Check
+         |
+         v
+ Previous Slide
+         |
+         v
+ Current Slide: 4
+```
+
+### Smile Recognition Logic
+
+1. The webcam captures frames.
+2. MediaPipe detects face landmarks.
+3. The smile detector calculates a smile score.
+4. The score must exceed the configured threshold.
+5. The smile must remain stable for the required hold time.
+6. Presentation control must be enabled.
+7. The cooldown period must have expired.
+8. The controller sends a previous-slide command.
+9. A smile release is required before another smile action.
+
+This prevents one continuous smile from repeatedly moving through slides.
+
+### Example Configuration
+
+Add settings like these to `config.py` when implementing smile recognition:
+
+```python
+# Smile recognition settings
+
+ENABLE_SMILE_DETECTION = True
+
+SMILE_ACTION = "PREVIOUS"
+
+SMILE_CONFIDENCE_THRESHOLD = 0.75
+
+SMILE_HOLD_TIME = 1.0
+
+SMILE_COOLDOWN = 2.0
+
+REQUIRE_SMILE_RELEASE = True
+```
+
+These are proposed configuration values, not existing settings.
+
+The smile confidence threshold needs calibration against the scoring method implemented in `face_detector.py`.
+
+### Recommended Detection Method
+
+Use **MediaPipe Face Landmarker** to locate facial landmarks around the mouth.
+
+Possible measurements include:
+
+- Mouth width relative to face width
+- Changes in the mouth corners
+- Mouth curvature
+- Smile-related facial blendshape scores, when supported
+
+A combined score is generally more reliable than measuring mouth width alone.
+
+For a better user experience, the smile detector should establish a neutral baseline for the presenter when possible.
+
+---
+
+## 🎮 Keyboard Controls
 
 | Key | Action |
-|---|---|
-| `→` / `←` | Next / previous slide or PDF page |
-| `ESC` | Emergency stop of gesture control (works globally on Windows, even while PowerPoint is focused) |
-| `Q` | Quit (when the HandSlide window is focused) |
+|-----|--------|
+| `→` | Next slide |
+| `←` | Previous slide |
+| `Ctrl + O` | Choose presentation file |
+| `ESC` | Emergency stop of gesture control |
+| `Q` | Quit application when focused |
+| `F` | Toggle PDF fullscreen |
+| `F11` | Toggle PDF fullscreen |
 
-## Customising
+**Note:** ESC is also commonly used by presentation viewers to exit fullscreen, so its exact behavior depends on which window receives the key.
 
-All in `config.py`:
+---
 
-- **Cooldown:** `GESTURE_COOLDOWN = 1.2`
-- **Hold time:** `STABLE_TIME = 0.5`, and `HOLD_TIMES = {"OPEN_PALM": 1.0}`
-- **Change what a gesture does:** edit `GESTURE_ACTIONS`, e.g. `"FIST": "PREVIOUS"`
-- **Confidence needed:** `CONFIDENCE_THRESHOLD = 0.7`
-- **Other webcam:** `CAMERA_INDEX = 1`
-- **Repeat while holding:** `REQUIRE_RELEASE_BETWEEN_TRIGGERS = False`
-- **Console logs:** `DEBUG = True / False`
-- **Model location / URL:** `MODEL_FILE`, `MODEL_URL`
-- **Accuracy tuning:** `FINGER_OPEN_RATIO`, `THUMB_OPEN_DIST_RATIO`, `POINT_MIN_HORIZONTAL`
+## ⚙️ Configuration
 
-To add a *new* gesture, write an `is_...` function and add a branch in `detect_hand_gesture()` in `gesture_detector.py`, then add it to `GESTURE_INFO` and `GESTURE_ACTIONS` in `config.py`.
+Existing hand gesture configuration can be adjusted in `config.py`.
 
-## Troubleshooting
+```python
+GESTURE_COOLDOWN = 1.2
 
-| Problem | Fix |
-|---|---|
-| "❌ Camera not available" | Close Zoom/Teams/Camera app, check Windows camera privacy settings, try `CAMERA_INDEX = 1`. |
-| "Hand tracking initialization failed" | The window now shows the real reason. Usually `hand_landmarker.task` is missing/damaged (delete it; it re-downloads) or no internet on first run. Otherwise use Python 3.10–3.12 and `pip install -U -r requirements.txt`. |
-| "PowerPoint may not be the active window" | Click your presentation so it is in front, or use START, which focuses it. |
-| Slides do not change | PowerPoint must be the front window. Also check the gesture shows in the panel and cooldown is READY. |
-| Gestures flicker / UNKNOWN | Better light, plain background, hand fully in view, palm toward the camera. Tune the thresholds in `config.py`. |
-| Thumbs up not recognised | Keep the hand upright, thumb clearly above the fist. |
-| Missing package message | `pip install -r requirements.txt` inside the activated venv. |
-| Low FPS | Keep `MP_MODEL_COMPLEXITY = 0`, close other camera apps, improve lighting. |
+STABLE_TIME = 0.5
 
-PyAutoGUI has a built-in fail-safe: slamming the mouse into a screen corner cancels key sending.
+HOLD_TIMES = {
+    "OPEN_PALM": 1.0
+}
 
-## Testing checklist
+CONFIDENCE_THRESHOLD = 0.7
 
-**Camera**
-- [ ] Camera opens
-- [ ] Hand appears
-- [ ] Landmarks appear
-- [ ] No-hand state works ("Waiting for hand...")
+CAMERA_INDEX = 0
 
-**Gestures**
+REQUIRE_RELEASE_BETWEEN_TRIGGERS = True
+
+DEBUG = False
+```
+
+### Gesture Action Mapping
+
+Example:
+
+```python
+GESTURE_ACTIONS = {
+    "OPEN_PALM": "NEXT",
+    "POINT_RIGHT": "NEXT",
+    "POINT_LEFT": "PREVIOUS",
+    "FIST": None,
+    "THUMBS_UP": "ENABLE"
+}
+```
+
+After adding a smile event to the controller, the intended mapping is:
+
+```python
+SMILE_ACTION = "PREVIOUS"
+```
+
+Smile detection requires a separate face recognition pipeline; adding `"SMILE"` to the hand classifier alone will not detect facial expressions.
+
+---
+
+## 🧠 How the System Works
+
+### Hand Gesture Pipeline
+
+```text
+Webcam
+  |
+  v
+OpenCV
+  |
+  v
+MediaPipe Hand Landmarker
+  |
+  v
+21 Hand Landmarks
+  |
+  v
+Gesture Classification
+  |
+  v
+Gesture Stabilizer
+  |
+  v
+Action Controller
+  |
+  v
+PowerPoint / PDF Viewer
+```
+
+### Smile Recognition Pipeline (Planned)
+
+```text
+Webcam
+  |
+  v
+OpenCV
+  |
+  v
+MediaPipe Face Landmarker
+  |
+  v
+Facial Landmark Analysis
+  |
+  v
+Smile Detection
+  |
+  v
+Hold-Time Verification
+  |
+  v
+Cooldown & Release Check
+  |
+  v
+Previous Slide Command
+  |
+  v
+PowerPoint / PDF Viewer
+```
+
+### Important Integration Rules
+
+Hand and facial detectors should process the same camera frames to avoid opening the webcam twice.
+
+The controller should:
+
+- Prioritize emergency stop commands.
+- Ignore smile events while control is disabled.
+- Avoid duplicate actions when a hand gesture and a smile are detected together.
+- Use an appropriate cooldown between slide changes.
+- Handle failures without freezing the interface.
+- Release webcam resources when the application closes.
+
+---
+
+## 🛠️ Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Camera not available | Close other camera applications and check Windows permissions |
+| No hand detected | Improve lighting and show your full hand |
+| Hand model failed | Check the model file and internet connection |
+| Gestures not responding | Check control status and confidence threshold |
+| Slides move too quickly | Increase cooldown and enable release protection |
+| PowerPoint not responding | Focus the slideshow window |
+| PDF not opening | Verify PyMuPDF is installed |
+| Low FPS | Reduce camera resolution and avoid expensive processing |
+| Smile not detected | Confirm the face detector feature is implemented and enabled |
+| Smile triggers accidentally | Increase smile threshold or hold time |
+| Smile changes too many slides | Enable release-before-repeat and increase cooldown |
+| Facial landmarks not visible | Face the webcam and improve lighting |
+| Camera freezes | Check for competing webcam processes and worker thread errors |
+
+---
+
+## ✅ Testing Checklist
+
+### Camera
+- [ ] Webcam opens correctly
+- [ ] Hand landmarks appear
+- [ ] Camera status displays correctly
+- [ ] Camera closes properly
+
+### Hand Gestures
 - [ ] Open palm detected
+- [ ] Point right detected
+- [ ] Point left detected
 - [ ] Fist detected
-- [ ] Thumb up detected
-- [ ] Pointing detected
-- [ ] Left/right detection works
+- [ ] Thumbs up detected
+- [ ] Gesture confidence works
 
-**PowerPoint**
+### Smile Recognition (New)
+- [ ] Face Landmarker initializes
+- [ ] Facial landmarks detected
+- [ ] Neutral face does not trigger
+- [ ] Smile correctly detected
+- [ ] Smile changes to previous slide
+- [ ] Smile hold time works
+- [ ] Smile cooldown works
+- [ ] Smile release requirement works
+- [ ] Smiling continuously does not skip slides
+- [ ] Face disappearance resets the smile state
+- [ ] Hand and smile events do not trigger duplicate actions
+
+### PowerPoint
+- [ ] PowerPoint file opens
+- [ ] Slideshow starts
 - [ ] Next slide works
 - [ ] Previous slide works
-- [ ] Start presentation works
-- [ ] Stop works
-- [ ] ESC emergency stop works
+- [ ] Stop control works
 
-**Stability**
-- [ ] Cooldown works
-- [ ] No repeated slide skipping
-- [ ] Webcam closes correctly
+### PDF
+- [ ] PDF file opens
+- [ ] Next page works
+- [ ] Previous page works
+- [ ] Fullscreen works
+- [ ] PDF navigation responds to gestures
+
+### Safety
+- [ ] ESC emergency stop works
+- [ ] Cooldown prevents rapid actions
+- [ ] Release-before-repeat works
+- [ ] No unexpected slide changes
 - [ ] Application exits cleanly
+
+---
+
+## 🚀 Future Improvements
+
+- 😊 Smile gesture for previous slide
+- 👀 Eye blink control
+- ✌️ Two-finger gesture
+- 🎤 Voice commands
+- 📱 Mobile remote controller
+- 🎯 Custom gesture mapping
+- 📊 Gesture recognition statistics
+- 🌐 Multilingual interface
+- 🎨 More modern interface themes
+- 🖥️ Multi-monitor presentation control
+- ⚡ Improved recognition accuracy
+
+---
+
+## 💻 Technologies Used
+
+| Technology | Purpose |
+|------------|---------|
+| Python | Main programming language |
+| OpenCV | Webcam processing |
+| MediaPipe Hands | Hand landmark tracking |
+| MediaPipe Face Landmarker | Planned smile detection |
+| PyAutoGUI | Keyboard automation |
+| Tkinter | Desktop user interface |
+| PyMuPDF | PDF rendering |
+| NumPy | Numerical operations |
+| Pillow | Image handling |
+
+---
+
+## 📌 Important Notes
+
+- This application is designed primarily for Windows 10/11.
+- PowerPoint control requires Microsoft PowerPoint.
+- PDF presentation uses the application's built-in viewer.
+- Internet may be required for first-time model downloads.
+- Presentation files are not edited.
+- Smile recognition requires implementation and testing before use.
+- Gesture recognition accuracy depends on lighting, camera quality, and visibility.
+
+---
+
+## ❤️ Project Vision
+
+HandSlide Controller aims to make presentations more natural, interactive, and accessible.
+
+Instead of relying on a keyboard or mouse, presenters can interact with their slides using simple gestures and, with the proposed upgrade, facial expressions.
+
+**Present smarter. Move freely. Control with a smile. 😊**
